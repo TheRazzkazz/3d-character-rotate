@@ -7,22 +7,19 @@
     "icon": "./assets/images/icon.png",
     "scheme": "3dcharacterrotate",
     "userInterfaceStyle": "automatic",
+
+    "platforms": ["ios"],
+
     "newArchEnabled": true,
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "To create or update your Ready Player Me avatar from a selfie.",
+        "NSMicrophoneUsageDescription": "Microphone access may be used by the avatar creator."
+      }
     },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
+
     "plugins": [
       "expo-router",
       [
@@ -33,8 +30,10 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-asset"
     ],
+
     "experiments": {
       "typedRoutes": true
     }
