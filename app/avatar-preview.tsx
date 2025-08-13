@@ -1,8 +1,8 @@
-// app/avatar-preview.tsx
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image as ExpoImage } from 'expo-image';
 
 const FALLBACK_AVATAR_ID = '689b9e04c911aabc2e9c587f';
 
@@ -13,10 +13,15 @@ export default function AvatarPreviewScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const savedUrl = await AsyncStorage.getItem('avatarUrl');
-        if (savedUrl) {
-          // Extract ID from something like: https://models.readyplayer.me/<id>.glb
-          const match = savedUrl.match(/readyplayer\.me\/([^/]+)\.glb/i);
+        const [storedId, storedUrl] = await Promise.all([
+          AsyncStorage.getItem('avatarId'),
+          AsyncStorage.getItem('avatarUrl'),
+        ]);
+
+        if (storedId) {
+          setAvatarId(storedId);
+        } else if (storedUrl) {
+          const match = storedUrl.match(/readyplayer\\.me\\/([^/]+)\\.glb/i);
           if (match && match[1]) {
             setAvatarId(match[1]);
           }
@@ -40,7 +45,7 @@ export default function AvatarPreviewScreen() {
   return (
     <SafeAreaView style={styles.center}>
       <View style={styles.card}>
-        <Image source={{ uri: pngUrl }} style={styles.avatar} resizeMode="contain" />
+        <ExpoImage source={{ uri: pngUrl }} style={styles.avatar} contentFit="contain" />
       </View>
       <Text style={styles.caption}>My Ready Player Me Avatar</Text>
     </SafeAreaView>
