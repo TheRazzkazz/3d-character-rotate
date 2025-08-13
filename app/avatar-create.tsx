@@ -7,7 +7,8 @@ import { WebView } from 'react-native-webview';
 export default function AvatarCreate() {
   const router = useRouter();
 
-  const injectedJS = useMemo(() => `
+  const injectedJS = useMemo(
+    () => `
     (function () {
       function parse(d){ try { return typeof d==='string' ? JSON.parse(d) : d; } catch(e){ return null; } }
       function onMsg(event) {
@@ -28,7 +29,9 @@ export default function AvatarCreate() {
       document.addEventListener('message', onMsg);
     })();
     true;
-  `, []);
+  `,
+    []
+  );
 
   async function onMessage(e: any) {
     try {
@@ -39,14 +42,14 @@ export default function AvatarCreate() {
         const avatarId: string | undefined = msg?.data?.avatarId;
 
         if (url) {
-          await AsyncStorage.setItem('rpm.avatarUrl', url);
+          await AsyncStorage.setItem('avatarUrl', url);
         }
         if (avatarId) {
-          await AsyncStorage.setItem('rpm.avatarId', avatarId);
+          await AsyncStorage.setItem('avatarId', avatarId);
         }
 
         Alert.alert('Avatar saved', 'Opening preview…');
-        router.replace('/avatar-preview'); // go to the preview screen
+        router.replace('/avatar-preview');
       }
     } catch {
       // ignore parse errors
@@ -61,7 +64,7 @@ export default function AvatarCreate() {
         onMessage={onMessage}
         startInLoadingState
         renderLoading={() => (
-          <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator />
           </View>
         )}

@@ -1,4 +1,3 @@
-// components/Stage.tsx
 import { useFrame } from '@react-three/fiber/native';
 import React, { useRef } from 'react';
 import * as THREE from 'three';
@@ -10,7 +9,7 @@ type Props = {
 };
 
 export default function Stage({ rotationY = 0, turntableSpeed = 0 }: Props) {
-  const group = useRef<THREE.Group>(null!);
+  const group = useRef<THREE.Group | null>(null);
 
   useFrame(() => {
     if (!group.current) return;
