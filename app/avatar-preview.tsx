@@ -21,7 +21,7 @@ export default function AvatarPreviewScreen() {
         if (storedId) {
           setAvatarId(storedId);
         } else if (storedUrl) {
-          const match = storedUrl.match(/readyplayer\\.me\\/([^/]+)\\.glb/i);
+          const match = storedUrl.match(/readyplayer\.me\/([^/]+)\.glb/i);
           if (match && match[1]) {
             setAvatarId(match[1]);
           }
