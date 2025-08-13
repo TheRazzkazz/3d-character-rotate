@@ -50,14 +50,7 @@ export default function CharacterRotateScreen() {
           <Canvas
             shadows
             dpr={[1, 2]}
-            onCreated={({ gl }) => {
-              const origPixelStorei = gl.pixelStorei.bind(gl);
-              gl.pixelStorei = (pname: number, param: any) => {
-                if (pname === 0x9243 || pname === 0x9241) return; // ignore unsupported enums
-                return origPixelStorei(pname, param);
-              };
-              gl.setClearColor(new THREE.Color('#0b1220'), 1);
-            }}
+            onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#0b1220'), 1)}
             camera={{ position: [0, 1.3, 3.3], fov: 50 }}
           >
             {/* Lighting (kept) */}
