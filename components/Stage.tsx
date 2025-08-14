@@ -1,13 +1,10 @@
 // components/Stage.tsx
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useThree } from '@react-three/fiber/native';
-import {
-  OrbitControls,
-  Environment,
-  useTexture,
-} from '@react-three/drei/native';
+import { OrbitControls, Environment, useTexture } from '@react-three/drei/native';
 import * as THREE from 'three';
 import Character from './Character';
+import { getSafeAnisotropy } from '../utils/glCaps';
 
 export type StageProps = {
   onStart?: () => void;
@@ -101,17 +98,8 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
 
   // Safe anisotropy + square-crop handling (robust on Expo Go)
   useEffect(() => {
-    // Compute a safe anisotropy once the renderer exists
-    const maxAniso =
-      (gl &&
-        gl.capabilities &&
-        typeof (gl.capabilities as any).getMaxAnisotropy === 'function' &&
-        (gl.capabilities as any).getMaxAnisotropy()) ||
-      1;
-    // Cap for mobile; fall back to 1 when unsupported
-    const safeAniso = Math.max(1, Math.min(8, Number(maxAniso) || 1));
-
-    // Apply safe anisotropy
+if (!gl) return;
+const safeAniso = getSafeAnisotropy(gl);
     stained.anisotropy = safeAniso;
     stained.needsUpdate = true;
 
@@ -205,6 +193,19 @@ export default function Stage({
   const platformMesh = useRef<THREE.Mesh>(null);
   const platformTex = useRef<THREE.Texture | null>(null);
   const avatarRef = useRef<THREE.Group>(null);
+  
+    // Shim getExtension for anisotropy and log the safe value
+  useEffect(() => {
+    if (!gl) return;
+
+    // Use Three.js renderer capabilities for anisotropy
+    const maxAniso = typeof gl?.capabilities?.getMaxAnisotropy === 'function'
+      ? gl.capabilities.getMaxAnisotropy()
+      : 1;
+    const safeAniso = Math.max(1, Math.min(8, maxAniso));
+    console.log('[GL] safeAniso =', safeAniso);
+  }, [gl]);
+
 
   /* Color/tone mapping */
   useEffect(() => {
