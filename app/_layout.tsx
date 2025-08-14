@@ -1,6 +1,5 @@
 // app/_layout.tsx
-
-import '../global-gl-override'; // global override for EXGL pixelStorei warnings
+import 'react-native-reanimated'; // keep this at the very top (side-effect import)
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -12,7 +11,19 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GLView } from 'expo-gl';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
-// ...existing code...
+// 1) Hide the noisy RN console message
+LogBox.ignoreLogs([/EXGL: gl\.pixelStorei\(\) doesn't support this parameter yet!/]);
+
+const origCreateContextAsync = GLView.prototype.createContextAsync;
+GLView.prototype.createContextAsync = async function (...args) {
+  const gl = await origCreateContextAsync.apply(this, args);
+  const origPixelStorei = gl.pixelStorei.bind(gl);
+  gl.pixelStorei = (pname: number, param: any) => {
+    if (pname === 0x9243 || pname === 0x9241) return; // unsupported enums
+    return origPixelStorei(pname, param);
+  };
+  return gl;
+};
 
 
 export default function RootLayout() {

@@ -4,7 +4,6 @@ import { useThree } from '@react-three/fiber/native';
 import {
   OrbitControls,
   Environment,
-  ContactShadows,
   useTexture,
 } from '@react-three/drei/native';
 import * as THREE from 'three';
@@ -78,23 +77,44 @@ function GradientBackground() {
 }
 
 /* Stained‑glass hero platform */
-function HeroPlatform() {
+type HeroPlatformProps = {
+  meshRef: React.MutableRefObject<THREE.Mesh | null>;
+  texRef: React.MutableRefObject<THREE.Texture | null>;
+};
+
+function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
+  const { gl } = useThree();
   const stained = useTexture(
     require('../assets/images/stained-glass-blue.png')
   );
+  texRef.current = stained;
   stained.colorSpace = THREE.SRGBColorSpace;
-stained.wrapS = THREE.RepeatWrapping;
-  stained.wrapT = THREE.RepeatWrapping;
-  stained.repeat.set(1, 1);
-  stained.offset.set(0, 0);
+  stained.wrapS = THREE.ClampToEdgeWrapping;
+  stained.wrapT = THREE.ClampToEdgeWrapping;
   stained.minFilter = THREE.LinearMipmapLinearFilter;
   stained.magFilter = THREE.LinearFilter;
   stained.generateMipmaps = true;
 
+  useEffect(() => {
+    const maxAniso = gl.capabilities.getMaxAnisotropy();
+    stained.anisotropy = maxAniso;
+    if (stained.image && stained.image.width && stained.image.height) {
+      const { width, height } = stained.image;
+      if (width !== height) {
+        const repeatY = width / height;
+        stained.repeat.set(1, repeatY);
+        stained.offset.set(0, (1 - repeatY) / 2);
+      } else {
+        stained.repeat.set(1, 1);
+        stained.offset.set(0, 0);
+      }
+    }
+  }, [stained, gl]);
+
   return (
     <group position={[0, 0, 0]}>
       {/* Top stained‑glass disk */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[1.5, 128]} />
         <meshStandardMaterial
           map={stained}
@@ -162,6 +182,9 @@ export default function Stage({
   const stageRef = useRef<THREE.Group>(null);
   const controls = useRef<any>(null);
   const { gl } = useThree();
+  const platformMesh = useRef<THREE.Mesh>(null);
+  const platformTex = useRef<THREE.Texture | null>(null);
+  const avatarRef = useRef<THREE.Group>(null);
 
   /* Color/tone mapping */
   useEffect(() => {
@@ -173,17 +196,47 @@ export default function Stage({
   /* Center orbit controls on stage */
   useEffect(() => {
     if (controls.current) {
-      controls.current.target.set(0, 1.6, 0);
+      controls.current.target.set(0, 1, 0);
       controls.current.update();
     }
   }, []);
 
   const {
-    minDistance = 0.5,
+    minDistance = 1.5,
     maxDistance = 6,
     minPolar = Math.PI * 0.35,
     maxPolar = Math.PI * 0.95,
   } = cameraLimits || {};
+
+  const DEBUG = __DEV__ && process.env.EXPO_PUBLIC_DEV_DEBUG === '1';
+
+  useEffect(() => {
+    if (DEBUG) {
+      const texture = platformTex.current;
+      const box = new THREE.Box3().setFromObject(avatarRef.current!);
+      const controlsInst = controls.current;
+      console.log('Stage debug info', {
+        platformScale: platformMesh.current?.scale,
+        platformWorldMatrix: platformMesh.current?.matrixWorld.elements,
+        textureSize: {
+          width: texture?.image?.width,
+          height: texture?.image?.height,
+        },
+        textureEncoding: texture?.colorSpace,
+        textureAnisotropy: texture?.anisotropy,
+        textureRepeat: texture?.repeat,
+        textureOffset: texture?.offset,
+        avatarBounds: { min: box.min, max: box.max },
+        orbit: {
+          target: controlsInst?.target,
+          distance: controlsInst?.object?.position.distanceTo(
+            controlsInst?.target
+          ),
+          fov: controlsInst?.object?.fov,
+        },
+      });
+    }
+  }, [DEBUG]);
 
   return (
     <>
@@ -196,7 +249,7 @@ export default function Stage({
 
       {/* Platform + ground shadow */}
       <group ref={stageRef} position={[0, 0, 0]}>
-        <HeroPlatform />
+        <HeroPlatform meshRef={platformMesh} texRef={platformTex} />
         {/* <ContactShadows
           position={[0, 0, 0]}
           scale={6}
@@ -205,7 +258,7 @@ export default function Stage({
           opacity={0.42}
         /> */}
         {/* Character slot */}
-        <group position={[0, characterYOffset, 0]} castShadow>
+        <group ref={avatarRef} position={[0, characterYOffset, 0]} castShadow>
           {children ?? <Character />}
         </group>
       </group>

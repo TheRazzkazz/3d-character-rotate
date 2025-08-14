@@ -28,7 +28,7 @@ function CharacterInner({
   const gltf = useGLTF(url);
 
   useEffect(() => {
-  gltf.scene.scale.set(scale, scale, scale);
+    gltf.scene.scale.set(scale, scale, scale);
 
     gltf.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -39,7 +39,9 @@ function CharacterInner({
     const box = new THREE.Box3().setFromObject(gltf.scene);
     const minY = box.min.y;
     gltf.scene.position.y -= minY;
-    console.log('Avatar bounding box:', box.min, box.max, 'offset', -minY);
+    if (__DEV__ && process.env.EXPO_PUBLIC_DEV_DEBUG === '1') {
+      console.log('Avatar bounding box:', box.min, box.max, 'offset', -minY);
+    }
   }, [gltf.scene, scale]);
 
   return <primitive object={gltf.scene} dispose={null} />;

@@ -7,6 +7,7 @@ import Stage from '../components/Stage';
 import Character from '../components/Character';
 
 export default function CharacterRotate() {
+    const debug = process.env.NODE_ENV !== 'production';
   return (
     <View style={styles.container}>
       <Canvas
@@ -18,8 +19,8 @@ export default function CharacterRotate() {
           gl.toneMappingExposure = 1.0;
         }}
       >
-        <Stage turntableSpeed={0.000}>
-          <Character />
+<Stage debug={debug}>
+          <Character debug={debug} />
         </Stage>
       </Canvas>
     </View>
