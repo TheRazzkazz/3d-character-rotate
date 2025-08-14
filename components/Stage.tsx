@@ -1,6 +1,6 @@
 // components/Stage.tsx
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useThree } from '@react-three/fiber/native';
+import { useThree, useFrame } from '@react-three/fiber/native';
 import { OrbitControls, Environment, useTexture } from '@react-three/drei/native';
 import * as THREE from 'three';
 import Character from './Character';
@@ -19,16 +19,19 @@ export type StageProps = {
   children?: React.ReactNode;
 };
 
-/* Deep blue Solo-Leveling palette */
+/* Sanctum palette */
 const PALETTE = {
-  bgTop: '#0a1424',
-  bgBottom: '#07101d',
+  // Background tones
+  bgTop: '#0a1321',        // midnight indigo
+  bgBottom: '#05080d',     // blue-black
+  vignetteTeal: '#0d2a33', // faint teal at edges
+  // Lighting/accents
   keyBlue: '#4ea3ff',
   rimCyan: '#7ffcff',
   indigo: '#4f46e5',
 };
 
-/* Vertical gradient backdrop (cheap, works everywhere) */
+/* Gradient + teal vignette backdrop (mobile-cheap) */
 function GradientBackground() {
   const meshRef = useRef<THREE.Mesh>(null!);
   const matRef = useRef<THREE.ShaderMaterial>(null!);
@@ -37,6 +40,11 @@ function GradientBackground() {
     () => ({
       topColor: { value: new THREE.Color(PALETTE.bgTop) },
       bottomColor: { value: new THREE.Color(PALETTE.bgBottom) },
+      vignetteColor: { value: new THREE.Color(PALETTE.vignetteTeal) },
+      vignetteRadius: { value: 0.78 },   // where vignette starts (0..1)
+      vignetteSoftness: { value: 0.38 }, // larger = softer edge
+      centerBoost: { value: 0.06 },      // subtle lift in the center
+      tealAmount: { value: 0.35 },       // how teal the very edge becomes
     }),
     []
   );
@@ -44,10 +52,33 @@ function GradientBackground() {
   const fragment = `
     uniform vec3 topColor;
     uniform vec3 bottomColor;
+    uniform vec3 vignetteColor;
+    uniform float vignetteRadius;
+    uniform float vignetteSoftness;
+    uniform float centerBoost;
+    uniform float tealAmount;
     varying vec2 vUv;
+
     void main() {
+      // Vertical gradient (bottom -> top)
       float t = vUv.y;
       vec3 col = mix(bottomColor, topColor, t);
+
+      // Radial vignette (center -> edges)
+      vec2 p = vUv - vec2(0.5);
+      float dist = length(p);
+      float vig = smoothstep(vignetteRadius, vignetteRadius - vignetteSoftness, dist);
+
+      // Tint the far edges towards teal, mixed with existing color
+      vec3 tealMix = mix(col, mix(col, vignetteColor, tealAmount), vig);
+      col = tealMix;
+
+      // Slight center glow to pull focus
+      float glow = smoothstep(0.5, 0.0, dist) * centerBoost;
+      col += vec3(glow);
+
+      // Clamp to display-safe range
+      col = clamp(col, 0.0, 1.0);
       gl_FragColor = vec4(col, 1.0);
     }
   `;
@@ -55,21 +86,125 @@ function GradientBackground() {
     varying vec2 vUv;
     void main() {
       vUv = uv;
-      gl_Position =
-        projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `;
 
   return (
     <mesh ref={meshRef} position={[0, 0, -6]}>
-      <planeGeometry args={[20, 20]} />
+      <planeGeometry args={[30, 30]} />
       <shaderMaterial
         ref={matRef}
         uniforms={uniforms}
         fragmentShader={fragment}
         vertexShader={vertex}
+        depthWrite={false}
       />
     </mesh>
+  );
+}
+
+/* Soft "oculus" god-ray as a camera-facing billboard (behind avatar) */
+function OculusCone({
+  color = '#7ffcff',            // teal-cyan
+  intensity = 0.18,             // overall alpha strength
+  flicker = 0.015,              // ~1–2% subtle flicker
+  position = [0, 1.8, -0.28],   // behind avatar, slightly above chest
+  scale = [6, 6, 1],            // wide cone
+}: {
+  color?: THREE.ColorRepresentation;
+  intensity?: number;
+  flicker?: number;
+  position?: [number, number, number];
+  scale?: [number, number, number];
+}) {
+  const group = useRef<THREE.Group>(null!);
+  const matRef = useRef<THREE.ShaderMaterial>(null!);
+  const start = useRef<number>(Date.now());
+
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0.0 },
+      uColor: { value: new THREE.Color(color) },
+      uIntensity: { value: intensity },
+      uFlicker: { value: flicker },
+    }),
+    [color, intensity, flicker]
+  );
+
+  // Always face the camera (billboard) and update time
+  const { camera } = useThree();
+  useFrame(() => {
+    if (group.current) {
+      group.current.quaternion.copy(camera.quaternion);
+    }
+    if (matRef.current) {
+      matRef.current.uniforms.uTime.value = (Date.now() - start.current) / 1000;
+    }
+  });
+
+  const fragment = `
+    uniform float uTime;
+    uniform vec3  uColor;
+    uniform float uIntensity;
+    uniform float uFlicker;
+    varying vec2 vUv;
+
+    // Soft cone from a circular "oculus" at top-center
+    void main() {
+      vec2 o = vec2(0.5, 1.05);     // "window" center just above the plane
+      vec2 p = vUv - o;
+
+      // Vertical progression: 0 at top, 1 at bottom
+      float down = clamp((o.y - vUv.y) * 1.25, 0.0, 1.0);
+
+      // Cone half-width widens as we go down
+      float halfW = mix(0.02, 0.40, down);
+
+      // Core cone shape: thin near the top, wide near the bottom
+      float core = 1.0 - smoothstep(halfW, halfW + 0.02, abs(p.x));
+
+      // Fade in shortly after the "window", fade out before bottom
+      float fadeTop = smoothstep(0.00, 0.06, down);
+      float fadeBottom = 1.0 - smoothstep(0.88, 1.0, down);
+
+      // Subtle radial pattern, like soft bands from a circular opening
+      float rings = 0.5 + 0.5 * sin(length(p * vec2(1.0, 1.2)) * 36.0 - uTime * 0.6);
+      float band = mix(1.0, rings, 0.06); // ~6% influence
+
+      // Very low flicker (1–2%)
+      float flicker = 1.0 + (sin(uTime * 2.1) + sin(uTime * 1.3)) * 0.5 * uFlicker;
+
+      float shape = core * fadeTop * fadeBottom;
+      float alpha = shape * uIntensity * band * flicker;
+
+      gl_FragColor = vec4(uColor, alpha);
+    }
+  `;
+  const vertex = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+
+  return (
+    <group ref={group} position={position} scale={scale}>
+      <mesh>
+        <planeGeometry args={[1, 1]} />
+        <shaderMaterial
+          ref={matRef}
+          uniforms={uniforms}
+          vertexShader={vertex}
+          fragmentShader={fragment}
+          transparent
+          depthTest
+          depthWrite={false}
+          blending={THREE.NormalBlending}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -85,7 +220,6 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
     require('../assets/images/stained-glass-blue.png')
   );
 
-  // Save a reference for debug logging below
   texRef.current = stained;
 
   // Texture defaults (mobile-safe)
@@ -98,8 +232,8 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
 
   // Safe anisotropy + square-crop handling (robust on Expo Go)
   useEffect(() => {
-if (!gl) return;
-const safeAniso = getSafeAnisotropy(gl);
+    if (!gl) return;
+    const safeAniso = getSafeAnisotropy(gl);
     stained.anisotropy = safeAniso;
     stained.needsUpdate = true;
 
@@ -108,7 +242,6 @@ const safeAniso = getSafeAnisotropy(gl);
     if (img && img.width && img.height) {
       const { width, height } = img;
       if (width !== height) {
-        // Keep circle perfect: no non-uniform mesh scale; adjust UVs only
         const repeatY = width / height;
         stained.repeat.set(1, repeatY);
         stained.offset.set(0, (1 - repeatY) / 2);
@@ -140,11 +273,7 @@ const safeAniso = getSafeAnisotropy(gl);
       {/* Soft underglow halo */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
         <circleGeometry args={[1.7, 64]} />
-        <meshBasicMaterial
-          color={PALETTE.keyBlue}
-          transparent
-          opacity={0.18}
-        />
+        <meshBasicMaterial color={PALETTE.keyBlue} transparent opacity={0.18} />
       </mesh>
     </group>
   );
@@ -193,19 +322,17 @@ export default function Stage({
   const platformMesh = useRef<THREE.Mesh>(null);
   const platformTex = useRef<THREE.Texture | null>(null);
   const avatarRef = useRef<THREE.Group>(null);
-  
-    // Shim getExtension for anisotropy and log the safe value
+
+  // Log safe anisotropy available
   useEffect(() => {
     if (!gl) return;
-
-    // Use Three.js renderer capabilities for anisotropy
-    const maxAniso = typeof gl?.capabilities?.getMaxAnisotropy === 'function'
-      ? gl.capabilities.getMaxAnisotropy()
-      : 1;
+    const maxAniso =
+      typeof gl?.capabilities?.getMaxAnisotropy === 'function'
+        ? gl.capabilities.getMaxAnisotropy()
+        : 1;
     const safeAniso = Math.max(1, Math.min(8, maxAniso));
     console.log('[GL] safeAniso =', safeAniso);
   }, [gl]);
-
 
   /* Color/tone mapping */
   useEffect(() => {
@@ -261,24 +388,19 @@ export default function Stage({
 
   return (
     <>
-      {/* Depth/atmosphere */}
-      <fog attach="fog" args={[PALETTE.bgBottom, 8, 18]} />
+      {/* Depth/atmosphere matches bottom tone */}
+      <fog attach="fog" args={[PALETTE.bgBottom as unknown as THREE.ColorRepresentation, 8, 18]} />
 
-      {/* Backdrop + lights */}
+      {/* Backdrop, god-ray, and lights */}
       <GradientBackground />
+      <OculusCone />
       <Lights />
 
       {/* Platform + ground shadow */}
       <group ref={stageRef} position={[0, 0, 0]}>
         <HeroPlatform meshRef={platformMesh} texRef={platformTex} />
-        {/* <ContactShadows
-          position={[0, 0, 0]}
-          scale={6}
-          blur={2.2}
-          far={2.8}
-          opacity={0.42}
-        /> */}
-        {/* Character slot */}
+
+        {/* Character slot (stays in front of oculus cone) */}
         <group ref={avatarRef} position={[0, characterYOffset, 0]} castShadow>
           {children ?? <Character />}
         </group>
