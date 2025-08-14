@@ -27,16 +27,22 @@ function CharacterInner({
 }) {
   const gltf = useGLTF(url);
 
-  // Ensure shadows work on all meshes
   useEffect(() => {
+  gltf.scene.scale.set(scale, scale, scale);
+
     gltf.scene.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     });
-  }, [gltf.scene]);
 
-  return <primitive object={gltf.scene} scale={scale} dispose={null} />;
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    const minY = box.min.y;
+    gltf.scene.position.y -= minY;
+    console.log('Avatar bounding box:', box.min, box.max, 'offset', -minY);
+  }, [gltf.scene, scale]);
+
+  return <primitive object={gltf.scene} dispose={null} />;
 }
 
 export default function Character({ overrideUrl, scale = 0.9 }: CharacterProps) {

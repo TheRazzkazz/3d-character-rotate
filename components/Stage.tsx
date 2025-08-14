@@ -1,6 +1,6 @@
 // components/Stage.tsx
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useThree, useFrame } from '@react-three/fiber/native';
+import { useThree } from '@react-three/fiber/native';
 import {
   OrbitControls,
   Environment,
@@ -11,9 +11,6 @@ import * as THREE from 'three';
 import Character from './Character';
 
 export type StageProps = {
-  rotationY?: number;
-  turntableSpeed?: number;      // radians per frame, e.g. 0.003
-  autoRotate?: boolean;
   onStart?: () => void;
   onEnd?: () => void;
   cameraLimits?: {
@@ -110,18 +107,6 @@ function HeroPlatform() {
         />
       </mesh>
 
-      {/* Glowing rim */}
-      <mesh position={[0, 0.06, 0]} castShadow>
-        <torusGeometry args={[1.52, 0.06, 64, 256]} />
-        <meshStandardMaterial
-          color={PALETTE.keyBlue}
-          emissive={PALETTE.keyBlue}
-          emissiveIntensity={1.1}
-          roughness={0.4}
-          metalness={0.6}
-        />
-      </mesh>
-
       {/* Soft underglow halo */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
         <circleGeometry args={[1.7, 64]} />
@@ -166,25 +151,15 @@ function Lights() {
 }
 
 export default function Stage({
-  rotationY = 0,
-  turntableSpeed = 0,
-  autoRotate = true,
   onStart,
   onEnd,
   cameraLimits,
   characterYOffset = 0,
   children,
 }: StageProps) {
-  const group = useRef<THREE.Group>(null!);
+  const stageRef = useRef<THREE.Group>(null);
   const controls = useRef<any>(null);
   const { gl } = useThree();
-
-  /* Smooth model rotation with optional turntable motion */
-  useFrame(() => {
-    const current = group.current.rotation.y;
-    group.current.rotation.y =
-      current + (rotationY - current) * 0.15 + turntableSpeed;
-  });
 
   /* Color/tone mapping */
   useEffect(() => {
@@ -193,15 +168,19 @@ export default function Stage({
     gl.toneMappingExposure = 1.0;
   }, [gl]);
 
+  /* Center orbit controls on stage */
   useEffect(() => {
-    if (controls.current) controls.current.autoRotate = autoRotate;
-  }, [autoRotate]);
+    if (controls.current) {
+      controls.current.target.set(0, 1, 0);
+      controls.current.update();
+    }
+  }, []);
 
   const {
-    minDistance = 3.2,
-    maxDistance = 7.2,
-    minPolar = Math.PI * 0.2,
-    maxPolar = Math.PI * 0.44,
+    minDistance = 1.5,
+    maxDistance = 6,
+    minPolar = Math.PI * 0.35,
+    maxPolar = Math.PI * 0.95,
   } = cameraLimits || {};
 
   return (
@@ -213,19 +192,16 @@ export default function Stage({
       <GradientBackground />
       <Lights />
 
-      {/* Platform + ground shadow (rotates with model) */}
-      <group ref={group}>
-        <group position={[0, 0, 0]}>
-          <HeroPlatform />
-          <ContactShadows
-            position={[0, 0, 0]}
-            scale={6}
-            blur={2.2}
-            far={2.8}
-            opacity={0.42}
-          />
-        </group>
-
+      {/* Platform + ground shadow */}
+      <group ref={stageRef} position={[0, 0, 0]}>
+        <HeroPlatform />
+        {/* <ContactShadows
+          position={[0, 0, 0]}
+          scale={6}
+          blur={2.2}
+          far={2.8}
+          opacity={0.42}
+        /> */}
         {/* Character slot */}
         <group position={[0, characterYOffset, 0]} castShadow>
           {children ?? <Character />}
@@ -235,20 +211,22 @@ export default function Stage({
       {/* Subtle reflections */}
       <Environment preset="night" />
 
-      {/* Orbit controls – purely Three.js, no React Native views */}
+      {/* Orbit controls */}
       <OrbitControls
         ref={controls}
+        makeDefault
+        autoRotate={false}
         enablePan={false}
+        enableZoom
+        enableRotate
         enableDamping
         dampingFactor={0.08}
-        autoRotate={autoRotate}
-        autoRotateSpeed={0.6}
+        rotateSpeed={0.9}
         minDistance={minDistance}
         maxDistance={maxDistance}
         minPolarAngle={minPolar}
         maxPolarAngle={maxPolar}
-        enableZoom={false}
-        touches={{ ONE: 1, TWO: 0, THREE: 0 }}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY }}
         onStart={onStart}
         onEnd={onEnd}
       />
