@@ -22,7 +22,7 @@ export type StageProps = {
   children?: React.ReactNode;
 };
 
-/* Deep blue Solo‑Leveling palette */
+/* Deep blue Solo-Leveling palette */
 const PALETTE = {
   bgTop: '#0a1424',
   bgBottom: '#07101d',
@@ -76,7 +76,7 @@ function GradientBackground() {
   );
 }
 
-/* Stained‑glass hero platform */
+/* Stained-glass hero platform */
 type HeroPlatformProps = {
   meshRef: React.MutableRefObject<THREE.Mesh | null>;
   texRef: React.MutableRefObject<THREE.Texture | null>;
@@ -87,7 +87,11 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
   const stained = useTexture(
     require('../assets/images/stained-glass-blue.png')
   );
+
+  // Save a reference for debug logging below
   texRef.current = stained;
+
+  // Texture defaults (mobile-safe)
   stained.colorSpace = THREE.SRGBColorSpace;
   stained.wrapS = THREE.ClampToEdgeWrapping;
   stained.wrapT = THREE.ClampToEdgeWrapping;
@@ -95,12 +99,28 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
   stained.magFilter = THREE.LinearFilter;
   stained.generateMipmaps = true;
 
+  // Safe anisotropy + square-crop handling (robust on Expo Go)
   useEffect(() => {
-    const maxAniso = gl.capabilities.getMaxAnisotropy();
-    stained.anisotropy = maxAniso;
-    if (stained.image && stained.image.width && stained.image.height) {
-      const { width, height } = stained.image;
+    // Compute a safe anisotropy once the renderer exists
+    const maxAniso =
+      (gl &&
+        gl.capabilities &&
+        typeof (gl.capabilities as any).getMaxAnisotropy === 'function' &&
+        (gl.capabilities as any).getMaxAnisotropy()) ||
+      1;
+    // Cap for mobile; fall back to 1 when unsupported
+    const safeAniso = Math.max(1, Math.min(8, Number(maxAniso) || 1));
+
+    // Apply safe anisotropy
+    stained.anisotropy = safeAniso;
+    stained.needsUpdate = true;
+
+    // If the source art is not square, letterbox vertically without distortion
+    const img: any = stained.image;
+    if (img && img.width && img.height) {
+      const { width, height } = img;
       if (width !== height) {
+        // Keep circle perfect: no non-uniform mesh scale; adjust UVs only
         const repeatY = width / height;
         stained.repeat.set(1, repeatY);
         stained.offset.set(0, (1 - repeatY) / 2);
@@ -113,7 +133,7 @@ function HeroPlatform({ meshRef, texRef }: HeroPlatformProps) {
 
   return (
     <group position={[0, 0, 0]}>
-      {/* Top stained‑glass disk */}
+      {/* Top stained-glass disk (true circle) */}
       <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <circleGeometry args={[1.5, 128]} />
         <meshStandardMaterial
