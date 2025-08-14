@@ -69,7 +69,12 @@ function GradientBackground() {
   return (
     <mesh ref={meshRef} position={[0, 0, -6]}>
       <planeGeometry args={[20, 20]} />
-      <shaderMaterial ref={matRef} uniforms={uniforms} fragmentShader={fragment} vertexShader={vertex} />
+      <shaderMaterial
+        ref={matRef}
+        uniforms={uniforms}
+        fragmentShader={fragment}
+        vertexShader={vertex}
+      />
     </mesh>
   );
 }
@@ -78,24 +83,35 @@ function GradientBackground() {
 function HeroPlatform() {
   const stained = useTexture(require('../assets/images/stained-glass-blue.png'));
   stained.colorSpace = THREE.SRGBColorSpace;
+  // Prevent edge bleeding / blocky artifacts on mobile
+  stained.wrapS = THREE.ClampToEdgeWrapping;
+  stained.wrapT = THREE.ClampToEdgeWrapping;
+  stained.minFilter = THREE.LinearMipmapLinearFilter;
+  stained.magFilter = THREE.LinearFilter;
+  stained.generateMipmaps = true;
 
   return (
     <group position={[0, 0, 0]}>
       {/* Top stained glass disk */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[1.8, 128]} />
+        {/* slightly smaller for nicer framing */}
+        <circleGeometry args={[1.5, 128]} />
         <meshStandardMaterial
           map={stained}
+          transparent
+          alphaTest={0.5}         // discard fuzzy half‑transparent pixels at edge
+          depthWrite
+          depthTest
           roughness={0.25}
           metalness={0.1}
           emissive={PALETTE.keyBlue}
-          emissiveIntensity={0.25}
+          emissiveIntensity={0.2}
         />
       </mesh>
 
       {/* Glowing rim */}
       <mesh position={[0, 0.06, 0]} castShadow>
-        <torusGeometry args={[1.82, 0.06, 64, 256]} />
+        <torusGeometry args={[1.52, 0.06, 64, 256]} />
         <meshStandardMaterial
           color={PALETTE.keyBlue}
           emissive={PALETTE.keyBlue}
@@ -107,7 +123,7 @@ function HeroPlatform() {
 
       {/* Soft underglow halo */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
-        <circleGeometry args={[2.0, 64]} />
+        <circleGeometry args={[1.7, 64]} />
         <meshBasicMaterial color={PALETTE.keyBlue} transparent opacity={0.18} />
       </mesh>
     </group>
@@ -180,8 +196,8 @@ export default function Stage({
   }, [autoRotate]);
 
   const {
-    minDistance = 2.8,
-    maxDistance = 6.5,
+    minDistance = 3.2,      // pulled back a touch to fit feet + platform
+    maxDistance = 7.2,
     minPolar = Math.PI * 0.2,
     maxPolar = Math.PI * 0.44,
   } = cameraLimits || {};
@@ -223,6 +239,9 @@ export default function Stage({
         maxDistance={maxDistance}
         minPolarAngle={minPolar}
         maxPolarAngle={maxPolar}
+        // RN-safe: prevent two-finger dolly crash
+        enableZoom={false}
+        touches={{ ONE: 1, TWO: 0, THREE: 0 }}
         onStart={onStart}
         onEnd={onEnd}
       />
