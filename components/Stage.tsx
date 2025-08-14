@@ -11,9 +11,9 @@ import * as THREE from 'three';
 import Character from './Character';
 
 export type StageProps = {
-  rotationY?: number;
-  turntableSpeed?: number; // radians per frame, e.g. 0.003
-  autoRotate?: boolean;
+  rotationY?: number;            // target yaw for character only
+  turntableSpeed?: number;       // radians per frame (character only)
+  autoRotate?: boolean;          // camera autorotate (default false below)
   onStart?: () => void;
   onEnd?: () => void;
   cameraLimits?: {
@@ -35,7 +35,7 @@ const PALETTE = {
   indigo: '#4f46e5',
 };
 
-/** Vertical gradient backdrop (cheap, works everywhere) */
+/** Vertical gradient backdrop */
 function GradientBackground() {
   const meshRef = useRef<THREE.Mesh>(null!);
   const matRef = useRef<THREE.ShaderMaterial>(null!);
@@ -69,21 +69,16 @@ function GradientBackground() {
   return (
     <mesh ref={meshRef} position={[0, 0, -6]}>
       <planeGeometry args={[20, 20]} />
-      <shaderMaterial
-        ref={matRef}
-        uniforms={uniforms}
-        fragmentShader={fragment}
-        vertexShader={vertex}
-      />
+      <shaderMaterial ref={matRef} uniforms={uniforms} fragmentShader={fragment} vertexShader={vertex} />
     </mesh>
   );
 }
 
-/** Stained‑glass hero platform (Kingdom Hearts vibe) */
+/** Stained‑glass hero platform */
 function HeroPlatform() {
   const stained = useTexture(require('../assets/images/stained-glass-blue.png'));
   stained.colorSpace = THREE.SRGBColorSpace;
-  // Prevent edge bleeding / blocky artifacts on mobile
+  // Mobile-friendly sampling
   stained.wrapS = THREE.ClampToEdgeWrapping;
   stained.wrapT = THREE.ClampToEdgeWrapping;
   stained.minFilter = THREE.LinearMipmapLinearFilter;
@@ -94,12 +89,11 @@ function HeroPlatform() {
     <group position={[0, 0, 0]}>
       {/* Top stained glass disk */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        {/* slightly smaller for nicer framing */}
         <circleGeometry args={[1.5, 128]} />
         <meshStandardMaterial
           map={stained}
           transparent
-          alphaTest={0.5}         // discard fuzzy half‑transparent pixels at edge
+          alphaTest={0.5}      // trims edge fuzz that caused blocky artifacts
           depthWrite
           depthTest
           roughness={0.25}
@@ -134,25 +128,21 @@ function HeroPlatform() {
 function Lights() {
   return (
     <>
-      {/* Cool key from upper-left */}
       <directionalLight
         position={[-3, 6, 4]}
-        intensity={2.2}
+        intensity={2.0}
         color={PALETTE.keyBlue}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
       />
-      {/* Cyan rim from behind */}
-      <directionalLight position={[3, 5, -4]} intensity={1.6} color={PALETTE.rimCyan} />
-      {/* Fill so shadows aren’t pitch black */}
+      <directionalLight position={[3, 5, -4]} intensity={1.4} color={PALETTE.rimCyan} />
       <ambientLight intensity={0.25} />
-      {/* Indigo spot from above to carve the silhouette */}
       <spotLight
         position={[0, 6.5, 0]}
         angle={0.7}
         penumbra={0.6}
-        intensity={1.5}
+        intensity={1.4}
         color={PALETTE.indigo}
         castShadow
       />
@@ -163,28 +153,29 @@ function Lights() {
 export default function Stage({
   rotationY = 0,
   turntableSpeed = 0,
-  autoRotate = true,
+  autoRotate = false,              // 🔧 default OFF to avoid conflict with character turntable
   onStart,
   onEnd,
   cameraLimits,
-  characterYOffset = 1.0,
+  characterYOffset = 0.95,         // slight tweak so feet line up
   children,
 }: StageProps) {
-  const group = useRef<THREE.Group>(null);
+  const platformRef = useRef<THREE.Group>(null);
+  const characterRef = useRef<THREE.Group>(null);   // rotate ONLY this group
   const controls = useRef<any>(null);
   const { gl } = useThree();
 
-  // Smooth model rotation with optional turntable motion
+  // Rotate ONLY the character (not the platform/camera)
   useFrame(() => {
-    if (!group.current) return;
-    const current = group.current.rotation.y;
-    group.current.rotation.y = current + (rotationY - current) * 0.15;
+    if (!characterRef.current) return;
+    const current = characterRef.current.rotation.y;
+    characterRef.current.rotation.y = current + (rotationY - current) * 0.15;
     if (turntableSpeed !== 0) {
-      group.current.rotation.y += turntableSpeed;
+      characterRef.current.rotation.y += turntableSpeed;
     }
   });
 
-  // Color/tone mapping for that punchy Solo‑Leveling contrast
+  // Filmic tone mapping
   useEffect(() => {
     gl.outputColorSpace = THREE.SRGBColorSpace;
     gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -196,7 +187,7 @@ export default function Stage({
   }, [autoRotate]);
 
   const {
-    minDistance = 3.2,      // pulled back a touch to fit feet + platform
+    minDistance = 3.2,
     maxDistance = 7.2,
     minPolar = Math.PI * 0.2,
     maxPolar = Math.PI * 0.44,
@@ -211,37 +202,36 @@ export default function Stage({
       <GradientBackground />
       <Lights />
 
-      {/* Platform + ground contact shadow (rotates with model) */}
-      <group ref={group}>
-        <group position={[0, 0, 0]}>
-          <HeroPlatform />
-          <ContactShadows position={[0, 0, 0]} scale={6} blur={2.2} far={2.8} opacity={0.42} />
-        </group>
+      {/* Static platform + contact shadow (no rotation) */}
+      <group ref={platformRef} position={[0, 0, 0]}>
+        <HeroPlatform />
+        <ContactShadows position={[0, 0, 0]} scale={6} blur={2.2} far={2.8} opacity={0.42} />
+      </group>
 
-        {/* Your character stands on the platform; tweak Y if needed */}
-        <group position={[0, characterYOffset, 0]} castShadow>
-          {children ?? <Character />}
-        </group>
+      {/* Character on top (this group rotates) */}
+      <group ref={characterRef} position={[0, characterYOffset, 0]} castShadow>
+        {children ?? <Character />}
       </group>
 
       {/* Subtle reflections */}
       <Environment preset="night" />
 
-      {/* Orbit controls - lets you move the view */}
+      {/* Camera controls (RN‑safe touch config) */}
       <OrbitControls
         ref={controls}
+        enableRotate
         enablePan={false}
         enableDamping
         dampingFactor={0.08}
         autoRotate={autoRotate}
         autoRotateSpeed={0.6}
+        rotateSpeed={0.9}
         minDistance={minDistance}
         maxDistance={maxDistance}
         minPolarAngle={minPolar}
         maxPolarAngle={maxPolar}
-        // RN-safe: prevent two-finger dolly crash
-        enableZoom={false}
-        touches={{ ONE: 1, TWO: 0, THREE: 0 }}
+        enableZoom={false}                 // prevent two‑finger dolly crash
+        touches={{ ONE: 1, TWO: 0, THREE: 0 }} // 1=ROTATE, others disabled
         onStart={onStart}
         onEnd={onEnd}
       />
