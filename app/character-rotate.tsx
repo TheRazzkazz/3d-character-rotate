@@ -1,25 +1,31 @@
-// app/character-rotate.tsx
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Canvas } from '@react-three/fiber/native';
 import * as THREE from 'three';
-import Stage from '../components/Stage';
 
-export default function CharacterRotateScreen() {
+import Stage from '../components/Stage';
+import Character from '../components/Character';
+
+export default function CharacterRotate() {
   return (
-    <View style={styles.fill}>
+    <View style={styles.container}>
       <Canvas
         shadows
-        dpr={[1, 2]}
-        onCreated={({ gl }) => gl.setClearColor(new THREE.Color('#0b1220'), 1)}
-        camera={{ position: [0, 1.3, 3.3], fov: 50 }}
+        camera={{ position: [0, 1.8, 5], fov: 42 }}
+        onCreated={({ gl }) => {
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.0;
+        }}
       >
-        <Stage />
+        <Stage turntableSpeed={0.000} characterYOffset={0.75}>
+          <Character />
+        </Stage>
       </Canvas>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#050b14' },
 });
