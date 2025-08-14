@@ -12,14 +12,21 @@ export default function CharacterRotate() {
   return (
     <View style={styles.container}>
       <Canvas
-        // Keep your existing scene behavior
+        // Mobile-friendly defaults
+        dpr={[1, 2]}
         shadows
-        camera={{ position: [0, 1.8, 5], fov: 42 }}
-        onCreated={({ gl }) => {
+        camera={{ position: [0, 1.65, 2.2], fov: 38, near: 0.1, far: 100 }}
+        onCreated={({ gl, camera }) => {
           // --- Safe renderer color/tone settings
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.0;
+
+          // Initial framing: slight downward tilt toward upper chest (~1.35m)
+          camera.fov = 38;
+          camera.position.set(0, 1.65, 2.2);
+          camera.lookAt(0, 1.35, 0);
+          camera.updateProjectionMatrix();
 
           // --- Access renderer + raw WebGL context
           const renderer: any = gl;
@@ -93,10 +100,11 @@ export default function CharacterRotate() {
           caps.getMaxAnisotropy = () => 1;
         }}
       >
-        {/* Keeping your scene structure intact */}
+        {/* Scene content */}
         <Stage /* debug={debug} */>
           <Character /* debug={debug} */ />
         </Stage>
+        {/* NOTE: No per-frame CameraRig here, so OrbitControls can rotate freely */}
       </Canvas>
     </View>
   );
