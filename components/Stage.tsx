@@ -205,7 +205,7 @@ export default function Stage({
       {/* Static platform + contact shadow (no rotation) */}
       <group ref={platformRef} position={[0, 0, 0]}>
         <HeroPlatform />
-        <ContactShadows position={[0, 0, 0]} scale={6} blur={2.2} far={2.8} opacity={0.42} />
+  {/* <ContactShadows position={[0, 0, 0]} scale={6} blur={2.2} far={2.8} opacity={0.42} /> */}
       </group>
 
       {/* Character on top (this group rotates) */}
