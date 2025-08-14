@@ -83,8 +83,10 @@ function HeroPlatform() {
     require('../assets/images/stained-glass-blue.png')
   );
   stained.colorSpace = THREE.SRGBColorSpace;
-  stained.wrapS = THREE.ClampToEdgeWrapping;
-  stained.wrapT = THREE.ClampToEdgeWrapping;
+stained.wrapS = THREE.RepeatWrapping;
+  stained.wrapT = THREE.RepeatWrapping;
+  stained.repeat.set(1, 1);
+  stained.offset.set(0, 0);
   stained.minFilter = THREE.LinearMipmapLinearFilter;
   stained.magFilter = THREE.LinearFilter;
   stained.generateMipmaps = true;
@@ -171,13 +173,13 @@ export default function Stage({
   /* Center orbit controls on stage */
   useEffect(() => {
     if (controls.current) {
-      controls.current.target.set(0, 1, 0);
+      controls.current.target.set(0, 1.6, 0);
       controls.current.update();
     }
   }, []);
 
   const {
-    minDistance = 1.5,
+    minDistance = 0.5,
     maxDistance = 6,
     minPolar = Math.PI * 0.35,
     maxPolar = Math.PI * 0.95,
