@@ -172,7 +172,7 @@ export default function Stage({
   onStart,
   onEnd,
   cameraLimits,
-  characterYOffset = 1.0,
+  characterYOffset = 0,
   children,
 }: StageProps) {
   const group = useRef<THREE.Group>(null!);

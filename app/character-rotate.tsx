@@ -18,7 +18,7 @@ export default function CharacterRotate() {
           gl.toneMappingExposure = 1.0;
         }}
       >
-        <Stage turntableSpeed={0.000} characterYOffset={0.75}>
+        <Stage turntableSpeed={0.000}>
           <Character />
         </Stage>
       </Canvas>
